@@ -3,19 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Multi-Agent Development Suite</title>
+    <title>AI Multi-Agent Dev Suite</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #121212; color: #e0e0e0; margin: 0; padding: 20px; display: flex; gap: 20px; box-sizing: border-box; }
-        .panel { background: #1e1e1e; padding: 20px; border-radius: 8px; flex: 1; display: flex; flex-direction: column; gap: 15px; }
-        #chat { height: 420px; overflow-y: auto; background: #000; padding: 12px; border-radius: 6px; border: 1px solid #333; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #121212; color: #e0e0e0; margin: 0; padding: 20px; display: flex; gap: 20px; height: 95vh; box-sizing: border-box; }
+        .panel { background: #1e1e1e; padding: 20px; border-radius: 8px; flex: 1; display: flex; flex-direction: column; gap: 15px; overflow-y: auto; }
+        .panel-wide { flex: 1.5; }
+        #chat { flex-grow: 1; overflow-y: auto; background: #000; padding: 12px; border-radius: 6px; border: 1px solid #333; min-height: 200px; }
+        #code-viewer { flex-grow: 1; overflow-y: auto; background: #0d1117; padding: 12px; border-radius: 6px; border: 1px solid #333; font-family: monospace; white-space: pre-wrap; font-size: 13px; color: #58a6ff; }
         .msg { margin-bottom: 10px; padding: 8px 12px; border-radius: 4px; font-size: 14px; line-height: 1.4; }
         .system { color: #888; font-style: italic; background: #181818; }
         .chat-entry { background: #2a2a2a; border-left: 4px solid #00bcd4; }
-        .agent-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; background: #252525; padding: 10px; border-radius: 6px; margin-bottom: 8px; }
+        .agent-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; background: #252525; padding: 10px; border-radius: 6px; align-items: center; }
         input, textarea, button { background: #2a2a2a; color: #fff; border: 1px solid #444; padding: 10px; border-radius: 4px; font-size: 14px; box-sizing: border-box; }
         input:focus, textarea:focus { border-color: #00bcd4; outline: none; }
-        button { background: #00bcd4; color: #000; font-weight: bold; cursor: pointer; border: none; transition: background 0.2s; }
+        button { background: #00bcd4; color: #000; font-weight: bold; cursor: pointer; border: none; }
         button:hover { background: #00acc1; }
+        .btn-danger { background: #ff5252; color: #fff; }
+        .btn-secondary { background: #333; color: #00bcd4; border: 1px solid #00bcd4; }
+        .code-block-header { background: #333; color: #fff; padding: 4px 8px; font-size: 12px; border-radius: 4px 4px 0 0; margin-top: 10px; }
+        .code-block-content { background: #000; padding: 10px; border-radius: 0 0 4px 4px; overflow-x: auto; margin-bottom: 10px; border: 1px solid #333; border-top: none; }
     </style>
 </head>
 <body>
@@ -25,32 +31,39 @@
     <div id="agent-list">
         <div class="agent-row">
             <input type="text" class="name" value="Lead Architecture" placeholder="Agent Name">
-            <input type="text" class="role" value="Lead Developer / Manager" placeholder="Role">
-            <input type="password" class="key" placeholder="API Key">
-            <input type="text" class="endpoint" value="https://api.openai.com/v1/chat/completions" placeholder="Endpoint">
+            <input type="text" class="role" value="Software Architect" placeholder="Role">
+            <button type="button" class="btn-danger" onclick="removeAgent(this)">X</button>
+            <input type="password" class="key" placeholder="Gemini API Key" style="grid-column: span 3;">
+            <input type="hidden" class="endpoint" value="https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent">
         </div>
         <div class="agent-row">
             <input type="text" class="name" value="UI/UX Specialist" placeholder="Agent Name">
             <input type="text" class="role" value="Frontend Developer" placeholder="Role">
-            <input type="password" class="key" placeholder="API Key">
-            <input type="text" class="endpoint" value="https://api.openai.com/v1/chat/completions" placeholder="Endpoint">
+            <button type="button" class="btn-danger" onclick="removeAgent(this)">X</button>
+            <input type="password" class="key" placeholder="Gemini API Key" style="grid-column: span 3;">
+            <input type="hidden" class="endpoint" value="https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent">
         </div>
     </div>
+    <button type="button" class="btn-secondary" onclick="addAgent()">+ Add Role</button>
     
     <h2>2. Project Objective</h2>
-    <textarea id="prompt" rows="3" placeholder="Describe the application or feature you want the team to build..."></textarea>
+    <textarea id="prompt" rows="4" placeholder="Describe the application..."></textarea>
     <button onclick="startDiscussion()">Start Collaboration</button>
 </div>
 
 <div class="panel">
     <h2>Live Agent Feed</h2>
     <div id="chat"></div>
-    
-    <h2>Step In (Intervene)</h2>
     <div style="display: flex; gap: 8px;">
-        <input type="text" id="guidance" placeholder="Inject direction, fix a logic error, or give instructions...">
-        <button style="width: 150px;" onclick="stepIn()">Inject</button>
+        <input type="text" id="guidance" placeholder="Inject direction...">
+        <button style="width: 100px;" onclick="stepIn()">Send</button>
     </div>
+</div>
+
+<div class="panel panel-wide">
+    <h2>Project Output</h2>
+    <p style="font-size: 12px; color: #888; margin-top: 0;">Compiled code will automatically appear below.</p>
+    <div id="code-viewer"></div>
 </div>
 
 <script>
@@ -61,21 +74,78 @@
     ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
         const chat = document.getElementById("chat");
-        const div = document.createElement("div");
-        div.className = "msg " + (data.type || "");
         
         if (data.type === "chat") {
-            div.className += " chat-entry";
-            div.innerHTML = `<strong>${data.agent} (${data.role}):</strong><br>${data.text}`;
+            const div = document.createElement("div");
+            div.className = "msg chat-entry";
+            
+            let rawText = data.text;
+            let blocks = [];
+            
+            // 1. Extract the raw code blocks safely first
+            rawText = rawText.replace(/```(\w*)[\r\n]+([\s\S]*?)```/g, function(match, lang, code) {
+                blocks.push({ lang: lang || 'code', code: code });
+                return "___CODE_BLOCK___";
+            });
+
+            // 2. Escape HTML in the conversational text so it doesn't disappear in the browser
+            let safeText = rawText
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;");
+
+            // 3. Put the safe notification markers back in and send code to the viewer
+            blocks.forEach(block => {
+                extractCode(block.lang, block.code, data.agent);
+                safeText = safeText.replace("___CODE_BLOCK___", `<br><em style="color: #00bcd4;">[Generated ${block.lang.toUpperCase()} code sent to Project Output]</em><br>`);
+            });
+
+            div.innerHTML = `<strong>${data.agent} (${data.role}):</strong><br>${safeText.replace(/\n/g, '<br>')}`;
+            chat.appendChild(div);
         } else {
+            const div = document.createElement("div");
+            div.className = "msg system";
             div.innerText = data.text;
+            chat.appendChild(div);
         }
-        
-        chat.appendChild(div);
         chat.scrollTop = chat.scrollHeight;
     };
 
+    function extractCode(language, code, agent) {
+        const viewer = document.getElementById("code-viewer");
+        const header = document.createElement("div");
+        header.className = "code-block-header";
+        header.innerText = `${language.toUpperCase()} File (by ${agent})`;
+        
+        const content = document.createElement("div");
+        content.className = "code-block-content";
+        content.textContent = code; // escapes HTML safely inside the viewer
+        
+        viewer.appendChild(header);
+        viewer.appendChild(content);
+        viewer.scrollTop = viewer.scrollHeight;
+    }
+
+    function addAgent() {
+        const agentList = document.getElementById("agent-list");
+        const newRow = document.createElement("div");
+        newRow.className = "agent-row";
+        newRow.innerHTML = `
+            <input type="text" class="name" value="Backend Dev" placeholder="Agent Name">
+            <input type="text" class="role" value="Database Engineer" placeholder="Role">
+            <button type="button" class="btn-danger" onclick="removeAgent(this)">X</button>
+            <input type="password" class="key" placeholder="Gemini API Key" style="grid-column: span 3;">
+            <input type="hidden" class="endpoint" value="https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent">
+        `;
+        agentList.appendChild(newRow);
+    }
+
+    function removeAgent(btn) {
+        if (document.querySelectorAll("#agent-list .agent-row").length > 1) btn.parentElement.remove();
+    }
+
     function startDiscussion() {
+        document.getElementById("code-viewer").innerHTML = ""; // Clear old project
         const agentRows = document.querySelectorAll("#agent-list .agent-row");
         const agents = Array.from(agentRows).map(row => ({
             name: row.querySelector(".name").value,
@@ -83,15 +153,13 @@
             api_key: row.querySelector(".key").value,
             endpoint: row.querySelector(".endpoint").value
         }));
-        
         const prompt = document.getElementById("prompt").value;
         ws.send(JSON.stringify({ action: "start", agents, prompt, rounds: 2 }));
     }
 
     function stepIn() {
         const guidance = document.getElementById("guidance").value;
-        if (!guidance) return;
-        ws.send(JSON.stringify({ action: "step_in", guidance }));
+        if (guidance) ws.send(JSON.stringify({ action: "step_in", guidance }));
         document.getElementById("guidance").value = "";
     }
 </script>
