@@ -12,31 +12,42 @@ class Agent:
     def __init__(self, name: str, role: str, api_key: str, endpoint: str):
         self.name = name
         self.role = role
-        self.api_key = api_key
-        self.endpoint = endpoint
+        self.api_key = api_key.strip()
+        self.endpoint = endpoint.strip()
 
     async def speak(self, history: List[Dict[str, str]]) -> str:
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
-        }
+        # Prepare contents payload formatted specifically for Gemini API
+        gemini_contents = []
+        for msg in history:
+            role = "user" if msg["role"] == "user" else "model"
+            gemini_contents.append({
+                "role": role,
+                "parts": [{"text": msg["content"]}]
+            })
+
         payload = {
-            "messages": [
-                {"role": "system", "content": f"You are {self.name}, acting in the role of: {self.role}."}
-            ] + history
+            "system_instruction": {
+                "parts": [{"text": f"You are {self.name}, acting in the role of: {self.role}. Collaborate with other models to fulfill the user's software project request."}]
+            },
+            "contents": gemini_contents
         }
-        
-        # Fallback simulation if no valid key/endpoint is passed
+
+        # Send API key via header
+        headers = {
+            "Content-Type": "application/json",
+            "x-goog-api-key": self.api_key
+        }
+
         if "example.com" in self.endpoint or not self.api_key:
             await asyncio.sleep(1)
-            return f"[{self.role} Proposal] Analyzed the current task specifications and ready to proceed."
-            
+            return f"[{self.role} Proposal] Analyzed current task specs."
+
         async with httpx.AsyncClient() as client:
             try:
                 resp = await client.post(self.endpoint, json=payload, headers=headers, timeout=30.0)
                 if resp.status_code == 200:
                     data = resp.json()
-                    return data["choices"][0]["message"]["content"]
+                    return data["candidates"][0]["content"]["parts"][0]["text"]
                 return f"Error ({resp.status_code}): {resp.text}"
             except Exception as e:
                 return f"Execution Exception: {str(e)}"
@@ -75,7 +86,6 @@ async def websocket_orchestrate(websocket: WebSocket):
         while True:
             data_str = await websocket.receive_text()
             payload = json.loads(data_str)
-            
             action = payload.get("action")
             
             if action == "start":
@@ -95,11 +105,11 @@ async def websocket_orchestrate(websocket: WebSocket):
                     await manager.broadcast({"type": "system", "text": f"--- Round {r+1} ---"})
                     
                     for agent in agents:
-                        await manager.broadcast({"type": "status", "text": f"{agent.name} is working..."})
+                        await manager.broadcast({"type": "status", "text": f"{agent.name} is thinking..."})
                         response = await agent.speak(conversation_history)
                         
                         entry = f"[{agent.name} - {agent.role}]: {response}"
-                        conversation_history.append({"role": "assistant", "content": entry})
+                        conversation_history.append({"role": "model", "content": entry})
                         
                         await manager.broadcast({
                             "type": "chat",
