@@ -16,23 +16,34 @@ class Agent:
         self.endpoint = endpoint.strip()
 
     async def speak(self, history: List[Dict[str, str]]) -> str:
-        # Prepare contents payload formatted specifically for Gemini API
+        # Build alternating Gemini contents structure
         gemini_contents = []
-        for msg in history:
-            role = "user" if msg["role"] == "user" else "model"
-            gemini_contents.append({
-                "role": role,
-                "parts": [{"text": msg["content"]}]
-            })
+        
+        # 1. Base User Prompt
+        user_prompt = history[0]["content"] if history else "Start project."
+        
+        # 2. Compile agent conversation history into context
+        context_str = f"Initial Project Prompt: {user_prompt}\n\n"
+        if len(history) > 1:
+            context_str += "Previous team discussion:\n"
+            for entry in history[1:]:
+                context_str += f"- {entry['content']}\n"
+        
+        context_str += f"\nAs {self.name} ({self.role}), provide your input and next steps for the team."
+
+        # Ensure request ends on a USER turn
+        gemini_contents.append({
+            "role": "user",
+            "parts": [{"text": context_str}]
+        })
 
         payload = {
             "system_instruction": {
-                "parts": [{"text": f"You are {self.name}, acting in the role of: {self.role}. Collaborate with other models to fulfill the user's software project request."}]
+                "parts": [{"text": f"You are {self.name}, working as: {self.role}. Collaborate with your software team to deliver complete solutions."}]
             },
             "contents": gemini_contents
         }
 
-        # Send API key via header
         headers = {
             "Content-Type": "application/json",
             "x-goog-api-key": self.api_key
@@ -40,7 +51,7 @@ class Agent:
 
         if "example.com" in self.endpoint or not self.api_key:
             await asyncio.sleep(1)
-            return f"[{self.role} Proposal] Analyzed current task specs."
+            return f"[{self.role} Proposal] Analyzed specs and ready to move forward."
 
         async with httpx.AsyncClient() as client:
             try:
@@ -108,8 +119,8 @@ async def websocket_orchestrate(websocket: WebSocket):
                         await manager.broadcast({"type": "status", "text": f"{agent.name} is thinking..."})
                         response = await agent.speak(conversation_history)
                         
-                        entry = f"[{agent.name} - {agent.role}]: {response}"
-                        conversation_history.append({"role": "model", "content": entry})
+                        entry = f"{agent.name} ({agent.role}): {response}"
+                        conversation_history.append({"role": "agent", "content": entry})
                         
                         await manager.broadcast({
                             "type": "chat",
